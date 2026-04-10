@@ -21,7 +21,7 @@
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <style>
-        body { background-color: #FFF9FB; margin: 0; padding: 0; }
+        body { background-color: #FFF9FB; margin: 0; padding: 0; color: #5D4037; }
         .soft-shadow { box-shadow: 0 20px 60px rgba(93, 64, 55, 0.08); }
         .animate-swing { animation: swing 2s infinite ease-in-out; }
         @keyframes swing { 0%, 100% { transform: rotate(-10deg); } 50% { transform: rotate(10deg); } }
@@ -29,10 +29,27 @@
         ::-webkit-scrollbar-track { background: #FFF5F7; }
         ::-webkit-scrollbar-thumb { background: #FFB7C5; border-radius: 10px; }
         .main-app-container { font-family: 'Nunito', sans-serif; }
-        .soft-pastel-input { width: 100%; background: #FFF9FA; border: 2.5px solid #F3F1F0; border-radius: 1.8rem; padding: 1.2rem 1.6rem; font-size: 0.95rem; font-weight: 800; color: #5D4037; outline: none; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); }
-        .soft-pastel-input:focus { border-color: #FFB7C5; background: white; box-shadow: 0 15px 45px rgba(255,183,197,0.1); transform: translateY(-2px); }
-        .soft-pastel-select { width: 100%; background: #FFF9FA; border: 2.5px solid #F3F1F0; border-radius: 1.5rem; padding: 1.2rem 1.6rem; font-size: 0.95rem; font-weight: 800; color: #5D4037; outline: none; cursor: pointer; appearance: none; transition: all 0.3s; }
+        
+        /* Cố định màu chữ đậm để không bị mất chữ */
+        .soft-pastel-input { 
+            width: 100%; background: #FFF9FA; border: 2.5px solid #F3F1F0; border-radius: 1.5rem; 
+            padding: 1rem 1.4rem; font-size: 0.95rem; font-weight: 800; color: #5D4037 !important; 
+            outline: none; transition: all 0.3s; 
+        }
+        .soft-pastel-input:focus { border-color: #FFB7C5; background: white; box-shadow: 0 10px 30px rgba(255,183,197,0.1); }
+        
+        .soft-pastel-select { 
+            width: 100%; background: #FFF9FA; border: 2.5px solid #F3F1F0; border-radius: 1.5rem; 
+            padding: 0.8rem 1.2rem; font-size: 0.95rem; font-weight: 800; color: #5D4037 !important; 
+            outline: none; cursor: pointer; appearance: none; transition: all 0.3s;
+        }
         .soft-pastel-select:focus { border-color: #FFB7C5; background: white; }
+        
+        /* Đảm bảo dropdown options có màu đen/nâu rõ ràng trên mobile/desktop */
+        select option {
+            color: #5D4037;
+            background: white;
+        }
     </style>
 </head>
 <body>
@@ -41,7 +58,7 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        // --- Cấu trúc Icon SVG để thay thế Lucide-React (Đã sửa lỗi Fragment) ---
+        // --- Cấu trúc Icon SVG Nội Khối ---
         const Icon = ({ name, size = 20, className = "", fill = "none", strokeWidth = 2.5 }) => {
             const icons = {
                 Plus: <path d="M5 12h14M12 5v14" />,
@@ -96,7 +113,7 @@
                 taskName: '', classification: 'Cá nhân', project: 'TITAN F2 - Nhân sự',
                 workGroup: 'Hoạt động cốt lõi & Hỗ trợ', taskType: 'Phát sinh', nextOccurrence: '',
                 recordDate: getNow().date, deadline: '', startDate: getNow().date, startTime: getNow().time,
-                endDate: '', endTime: '', priority: '2 - Plan', pic: '', outcomeStatus: 'Chưa làm', relevantLink: '', notes: ''
+                endDate: '', endTime: '', priority: '2 - Plan (Kế hoạch)', pic: '', outcomeStatus: 'Chưa làm', relevantLink: '', notes: ''
             };
             const [formData, setFormData] = useState(initialForm);
 
@@ -182,10 +199,19 @@
             };
 
             const getPriorityStyle = (p) => {
-                if (p?.startsWith('1')) return 'bg-[#5D4037] text-white font-black px-3 py-1 rounded-full';
-                if (p?.startsWith('2')) return 'bg-[#8D6E63] text-white font-bold px-3 py-1 rounded-full'; 
-                if (p?.startsWith('3')) return 'bg-[#D7CCC8] text-[#5D4037] font-bold px-3 py-1 rounded-full'; 
-                return 'bg-pink-50 text-pink-400 font-medium px-3 py-1 rounded-full';
+                if (p?.includes('1 - Urgent')) return 'bg-[#5D4037] text-white font-black px-3 py-1 rounded-full';
+                if (p?.includes('2 - Plan')) return 'bg-[#8D6E63] text-white font-bold px-3 py-1 rounded-full'; 
+                if (p?.includes('3 - Delegate')) return 'bg-[#D7CCC8] text-[#5D4037] font-bold px-3 py-1 rounded-full'; 
+                return 'bg-pink-100 text-pink-700 font-medium px-3 py-1 rounded-full';
+            };
+
+            const getOutcomeIcon = (status) => {
+                switch (status) {
+                    case 'Hoàn thành': return <Icon name="CheckCircle2" className="text-green-500" size={26}/>;
+                    case 'Đang làm': return <Icon name="Timer" className="text-blue-500" size={26}/>;
+                    case 'Không làm': return <Icon name="XCircle" className="text-rose-500" size={26}/>;
+                    default: return <Icon name="Circle" className="text-stone-300" size={26}/>;
+                }
             };
 
             const filteredTasks = tasks.filter(t => {
@@ -203,10 +229,10 @@
                             <div className="bg-[#FFB7C5] p-3 rounded-[1.2rem] text-white shadow-lg shadow-pink-100">
                                 <Icon name="Heart" fill="currentColor" />
                             </div>
-                            <h1 className="text-xl font-black text-pink-500 uppercase tracking-tighter">Nhunz's Sweet</h1>
+                            <h1 className="text-xl font-black text-pink-600 uppercase tracking-tighter">Nhunz's Sweet</h1>
                         </div>
                         <div className="flex items-center gap-3">
-                            <button onClick={() => window.open(scriptEditorUrl, '_blank')} className="p-2.5 rounded-[1rem] bg-pink-50/50 text-pink-400 hover:text-pink-600 transition-all flex items-center gap-2 px-4 shadow-sm">
+                            <button onClick={() => window.open(scriptEditorUrl, '_blank')} className="p-2.5 rounded-[1rem] bg-pink-50/50 text-pink-500 hover:text-pink-600 transition-all flex items-center gap-2 px-4 shadow-sm font-bold">
                                 <Icon name="Settings" size={18} />
                                 <span className="text-[10px] font-black uppercase hidden sm:inline">Cài đặt</span>
                             </button>
@@ -219,7 +245,7 @@
 
                     {syncStatus.message && (
                         <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 font-black text-sm animate-in slide-in-from-top-4 ${syncStatus.type === 'error' ? 'bg-rose-500 text-white' : 'bg-[#FFB7C5] text-white'}`}>
-                            {syncStatus.type === 'error' ? <Icon name="XCircle" size={16}/> : <Icon name="Plus" className="rotate-45" size={16}/>}
+                            {syncStatus.type === 'error' ? <Icon name="XCircle" size={16}/> : <Icon name="CheckCircle2" size={16}/>}
                             {syncStatus.message}
                         </div>
                     )}
@@ -235,11 +261,11 @@
                         </div>
 
                         {showReminders && tasksToRemind.length > 0 && (
-                            <div className="mb-12 p-6 bg-rose-50 border-2 border-dashed border-rose-200 rounded-[2rem] relative shadow-inner">
+                            <div className="mb-12 p-6 bg-rose-50 border-2 border-dashed border-rose-200 rounded-[2rem] relative shadow-inner text-[#5D4037]">
                                 <button onClick={() => setShowReminders(false)} className="absolute top-4 right-4 text-rose-300 hover:text-rose-500"><Icon name="XCircle" size={20}/></button>
                                 <div className="flex items-center gap-3 mb-4">
                                     <div className="p-2 bg-rose-500 rounded-[1rem] text-white shadow-lg"><Icon name="Bell" size={20}/></div>
-                                    <h4 className="text-sm font-black text-[#5D4037] uppercase tracking-widest">NHẮC NHỞ CHO NHUNZ</h4>
+                                    <h4 className="text-sm font-black uppercase tracking-widest">NHẮC NHỞ CHO NHUNZ</h4>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     {tasksToRemind.map(t => (
@@ -269,14 +295,15 @@
                             <button onClick={() => setShowForm(!showForm)} className={`flex-1 p-6 rounded-[2rem] flex items-center justify-center gap-4 font-black text-lg transition-all shadow-xl hover:-translate-y-1 ${showForm ? 'bg-[#5D4037] text-white' : 'bg-[#FFB7C5] text-white hover:bg-[#FFA4B5]'}`}>
                                 {showForm ? <><Icon name="ChevronUp" size={22}/> THU GỌN FORM</> : <><Icon name="Plus" size={22}/> THÊM CHECKLIST CHO NHUNZ 🎀</>}
                             </button>
+                            
                             <div className="flex items-center gap-2 bg-white p-3 rounded-[2rem] border border-pink-50 shadow-sm overflow-hidden">
-                                <div className="flex flex-col px-6 border-r border-pink-50 min-w-[140px]">
-                                    <span className="text-[8px] font-black text-stone-400 uppercase mb-1">PHÂN LOẠI</span>
-                                    <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)} className="bg-transparent border-none text-[10px] font-black outline-none text-[#5D4037] uppercase tracking-widest appearance-none cursor-pointer p-0 m-0"><option value="All">Tất cả</option><option value="Vùng">Vùng</option><option value="Regions">Regions</option><option value="Cá nhân">Cá nhân</option><option value="khác">Khác</option></select>
+                                <div className="flex flex-col px-6 border-r border-pink-50 min-w-[140px] items-center">
+                                    <span className="text-[8px] font-black text-stone-400 uppercase mb-1 tracking-widest">PHÂN LOẠI</span>
+                                    <select value={deptFilter} onChange={e => setDeptFilter(e.target.value)} className="bg-transparent border-none text-[10px] font-black outline-none text-[#5D4037] uppercase tracking-widest appearance-none cursor-pointer p-0 m-0 text-center"><option value="All">Tất cả</option><option value="Vùng">Vùng</option><option value="Regions">Regions</option><option value="Cá nhân">Cá nhân</option><option value="khác">Khác</option></select>
                                 </div>
-                                <div className="flex flex-col px-6 min-w-[140px]">
-                                    <span className="text-[8px] font-black text-stone-400 uppercase mb-1">ĐẦU RA</span>
-                                    <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-transparent border-none text-[10px] font-black outline-none text-[#5D4037] uppercase tracking-widest appearance-none pr-8 cursor-pointer p-0 m-0"><option value="All">Tất cả</option><option value="Đang làm">Đang làm</option><option value="Done">Đã xong</option></select>
+                                <div className="flex flex-col px-6 min-w-[140px] items-center">
+                                    <span className="text-[8px] font-black text-stone-400 uppercase mb-1 tracking-widest">ĐẦU RA</span>
+                                    <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="bg-transparent border-none text-[10px] font-black outline-none text-[#5D4037] uppercase tracking-widest appearance-none cursor-pointer p-0 m-0 text-center"><option value="All">Tất cả</option><option value="Đang làm">Đang làm</option><option value="Done">Đã xong</option></select>
                                 </div>
                             </div>
                         </div>
@@ -285,37 +312,54 @@
                             <div className="bg-white border border-pink-50 rounded-[3rem] p-10 mb-12 shadow-[0_25px_60px_-15px_rgba(93,64,55,0.1)] animate-in zoom-in-95 duration-500">
                                 <form onSubmit={handleAddTask} className="space-y-10">
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
-                                        <div className="space-y-6">
-                                            <p className="text-[10px] font-black uppercase text-[#5D4037] border-b border-pink-50 pb-2 flex items-center gap-2"><Icon name="Layout" size={14}/> PHÂN LOẠI & PROJECT</p>
-                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5">Tên công việc 🌵</label><input required value={formData.taskName} onChange={e => setFormData({...formData, taskName: e.target.value})} className="soft-pastel-input" placeholder="Viết việc cần làm..." /></div>
-                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5">Phân loại 🐣</label><select value={formData.classification} onChange={e => setFormData({...formData, classification: e.target.value})} className="soft-pastel-select"><option value="Vùng">Vùng</option><option value="Regions">Regions</option><option value="Cá nhân">Cá nhân</option><option value="khác">Khác</option></select></div>
-                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5">Project ✨</label><select value={formData.project} onChange={e => setFormData({...formData, project: e.target.value})} className="soft-pastel-select"><option value="TITAN F2 - Nhân sự">TITAN F2 - Nhân sự</option><option value="TITAN F2 - Mô hình Giao lấy & Chính sách">TITAN F2 - Mô hình Giao lấy & Chính sách</option><option value="Champion">Champion</option><option value="Khác">Khác</option><option value="Không">Không</option></select></div>
+                                        <div className="space-y-6 text-[#5D4037]">
+                                            <p className="text-[10px] font-black uppercase border-b border-pink-50 pb-2 flex items-center gap-2 tracking-widest"><Icon name="Layout" size={14}/> PHÂN LOẠI & PROJECT</p>
+                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black uppercase ml-5 tracking-tight">Tên công việc 🌵</label><input required value={formData.taskName} onChange={e => setFormData({...formData, taskName: e.target.value})} className="soft-pastel-input" placeholder="Viết việc cần làm..." /></div>
+                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black uppercase ml-5 tracking-tight">Phân loại 🐣</label><select value={formData.classification} onChange={e => setFormData({...formData, classification: e.target.value})} className="soft-pastel-select"><option value="Vùng">Vùng</option><option value="Regions">Regions</option><option value="Cá nhân">Cá nhân</option><option value="khác">Khác</option></select></div>
+                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black uppercase ml-5 tracking-tight">Project ✨</label><select value={formData.project} onChange={e => setFormData({...formData, project: e.target.value})} className="soft-pastel-select"><option value="TITAN F2 - Nhân sự">TITAN F2 - Nhân sự</option><option value="TITAN F2 - Mô hình Giao lấy & Chính sách">TITAN F2 - Mô hình Giao lấy & Chính sách</option><option value="Champion">Champion</option><option value="Khác">Khác</option><option value="Không">Không</option></select></div>
                                         </div>
-                                        <div className="space-y-6">
-                                            <p className="text-[10px] font-black uppercase text-[#5D4037] border-b border-pink-50 pb-2 flex items-center gap-2"><Icon name="RefreshCcw" size={14}/> NHÓM & ĐỊNH KỲ</p>
-                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5">Nhóm công việc 📂</label><select value={formData.workGroup} onChange={e => setFormData({...formData, workGroup: e.target.value})} className="soft-pastel-select"><option value="Hoạt động cốt lõi & Hỗ trợ">Hoạt động cốt lõi & Hỗ trợ</option><option value="Quản trị & Giao tiếp">Quản trị & Giao tiếp</option><option value="Lập kế hoạch & Phân tích">Lập kế hoạch & Phân tích</option><option value="Đào tạo & Phát triển">Đào tạo & Phát triển</option></select></div>
-                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5">Loại hình🔄</label><select value={formData.taskType} onChange={e => setFormData({...formData, taskType: e.target.value})} className="soft-pastel-select"><option value="Phát sinh">Phát sinh</option><option value="Định kỳ">Định kỳ</option></select></div>
-                                            {formData.taskType === 'Định kỳ' && <div className="flex flex-col gap-2"><label className="text-[10px] font-black text-rose-500 uppercase ml-5">Ngày nhắc lại sau 🔔</label><input type="date" value={formData.nextOccurrence} onChange={e => setFormData({...formData, nextOccurrence: e.target.value})} className="soft-pastel-input bg-white border-rose-200" /></div>}
-                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5">PIC 👤</label><input value={formData.pic} onChange={e => setFormData({...formData, pic: e.target.value})} className="soft-pastel-input" placeholder="Tên PIC..." /></div>
+                                        <div className="space-y-6 text-[#5D4037]">
+                                            <p className="text-[10px] font-black uppercase border-b border-pink-50 pb-2 flex items-center gap-2 tracking-widest"><Icon name="RefreshCcw" size={14}/> NHÓM & ĐỊNH KỲ</p>
+                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black uppercase ml-5 tracking-tight">Nhóm công việc 📂</label><select value={formData.workGroup} onChange={e => setFormData({...formData, workGroup: e.target.value})} className="soft-pastel-select"><option value="Hoạt động cốt lõi & Hỗ trợ">Hoạt động cốt lõi & Hỗ trợ</option><option value="Quản trị & Giao tiếp">Quản trị & Giao tiếp</option><option value="Lập kế hoạch & Phân tích">Lập kế hoạch & Phân tích</option><option value="Đào tạo & Phát triển">Đào tạo & Phát triển</option></select></div>
+                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black uppercase ml-5 tracking-tight">Loại hình🔄</label><select value={formData.taskType} onChange={e => setFormData({...formData, taskType: e.target.value})} className="soft-pastel-select"><option value="Phát sinh">Phát sinh</option><option value="Định kỳ">Định kỳ</option></select></div>
+                                            {formData.taskType === 'Định kỳ' && <div className="flex flex-col gap-2"><label className="text-[10px] font-black text-rose-500 uppercase ml-5 tracking-tight">Ngày nhắc lại sau 🔔</label><input type="date" value={formData.nextOccurrence} onChange={e => setFormData({...formData, nextOccurrence: e.target.value})} className="soft-pastel-input bg-white border-rose-200" /></div>}
+                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black uppercase ml-5 tracking-tight">PIC 👤</label><input value={formData.pic} onChange={e => setFormData({...formData, pic: e.target.value})} className="soft-pastel-input" placeholder="Tên PIC..." /></div>
                                         </div>
-                                        <div className="space-y-6">
-                                            <p className="text-[10px] font-black uppercase text-[#5D4037] border-b border-pink-50 pb-2 flex items-center gap-2"><Icon name="Target" size={14}/> ƯU TIÊN & TRẠNG THÁI</p>
-                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5">Ưu tiên ⭐️</label><select value={formData.priority} onChange={e => setFormData({...formData, priority: e.target.value})} className={`soft-pastel-select transition-all ${getPriorityStyle(formData.priority)}`}><option value="1 - Urgent">🔥 1 - Urgent</option><option value="2 - Plan">📅 2 - Plan</option><option value="3 - Delegate">🤝 3 - Delegate</option><option value="4 - Ignore">☁️ 4 - Ignore</option></select></div>
-                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5">Đầu ra 🎯</label><select value={formData.outcomeStatus} onChange={e => setFormData({...formData, outcomeStatus: e.target.value})} className="soft-pastel-select font-black text-stone-700"><option value="Chưa làm">⚪ Chưa làm</option><option value="Đang làm">⏳ Đang làm</option><option value="Hoàn thành">✅ Hoàn thành</option><option value="Không làm">Không làm</option></select></div>
-                                            <div className="bg-[#FFFBFC] p-4 rounded-2xl border border-pink-50"><div className="flex flex-col gap-2"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-1">Deadline 🗓️</label><input type="date" value={formData.deadline} onChange={e => setFormData({...formData, deadline: e.target.value})} className="soft-pastel-input bg-white" /></div></div>
+                                        <div className="space-y-6 text-[#5D4037]">
+                                            <p className="text-[10px] font-black uppercase border-b border-pink-50 pb-2 flex items-center gap-2 tracking-widest"><Icon name="Target" size={14}/> ƯU TIÊN & TRẠNG THÁI</p>
+                                            <div className="flex flex-col gap-2">
+                                                <label className="text-[10px] font-black uppercase ml-5 tracking-tight">Ưu tiên ⭐️</label>
+                                                {/* CẬP NHẬT: Ưu tiên theo hình image_1b04ba.png */}
+                                                <select value={formData.priority} onChange={e => setFormData({...formData, priority: e.target.value})} className="soft-pastel-select font-bold">
+                                                    <option value="1 - Urgent (Rất gấp)">🔥 1 - Urgent (Rất gấp)</option>
+                                                    <option value="2 - Plan (Kế hoạch)">📅 2 - Plan (Kế hoạch)</option>
+                                                    <option value="3 - Delegate (Ủy quyền)">🤝 3 - Delegate (Ủy quyền)</option>
+                                                    <option value="4 - Ignore (Bỏ qua)">☁️ 4 - Ignore (Bỏ qua)</option>
+                                                </select>
+                                            </div>
+                                            <div className="flex flex-col gap-2">
+                                                <label className="text-[10px] font-black uppercase ml-5 tracking-tight">Đầu ra 🎯</label>
+                                                <select value={formData.outcomeStatus} onChange={e => setFormData({...formData, outcomeStatus: e.target.value})} className="soft-pastel-select font-black">
+                                                    <option value="Chưa làm">⚪ Chưa làm</option>
+                                                    <option value="Đang làm">⏳ Đang làm</option>
+                                                    <option value="Hoàn thành">✅ Hoàn thành</option>
+                                                    <option value="Không làm">🚫 Không làm</option>
+                                                </select>
+                                            </div>
+                                            <div className="bg-[#FFFBFC] p-4 rounded-2xl border border-pink-50"><div className="flex flex-col gap-2"><label className="text-[10px] font-black uppercase ml-1 tracking-tight">Deadline 🗓️</label><input type="date" value={formData.deadline} onChange={e => setFormData({...formData, deadline: e.target.value})} className="soft-pastel-input bg-white" /></div></div>
                                         </div>
                                     </div>
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-8 border-t border-stone-100">
-                                        <div className="space-y-6">
+                                        <div className="space-y-6 text-[#5D4037]">
                                             <div className="flex gap-4 items-end">
-                                                <div className="flex flex-col gap-2 flex-1"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5">Bắt đầu 🕓</label><input type="date" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} className="soft-pastel-input text-[11px]" /></div>
-                                                <div className="flex flex-col gap-2 flex-1"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5">Giờ bắt đầu</label><div className="flex gap-2"><input type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} className="soft-pastel-input text-[11px] flex-1" /><button type="button" onClick={() => setFormData({...formData, ...getNow()})} className="bg-pink-50 p-2 rounded-xl text-pink-400"><Icon name="RefreshCcw" size={16}/></button></div></div>
+                                                <div className="flex flex-col gap-2 flex-1"><label className="text-[10px] font-black uppercase ml-5 tracking-tight">Bắt đầu 🕓</label><input type="date" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} className="soft-pastel-input text-[11px]" /></div>
+                                                <div className="flex flex-col gap-2 flex-1"><label className="text-[10px] font-black uppercase ml-5 tracking-tight">Giờ bắt đầu</label><div className="flex gap-2"><input type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} className="soft-pastel-input text-[11px] flex-1" /><button type="button" onClick={() => setFormData({...formData, ...getNow()})} className="bg-pink-50 p-2 rounded-xl text-pink-500 transition-colors hover:bg-pink-100"><Icon name="RefreshCcw" size={16}/></button></div></div>
                                             </div>
-                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5">Link tài liệu 🔗</label><input type="url" value={formData.relevantLink} onChange={e => setFormData({...formData, relevantLink: e.target.value})} className="soft-pastel-input" placeholder="Dán link tại đây..." /></div>
+                                            <div className="flex flex-col gap-2"><label className="text-[10px] font-black uppercase ml-5 tracking-tight">Link tài liệu 🔗</label><input type="url" value={formData.relevantLink} onChange={e => setFormData({...formData, relevantLink: e.target.value})} className="soft-pastel-input" placeholder="Dán link tại đây..." /></div>
                                         </div>
-                                        <div className="flex flex-col gap-2"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5">Ghi chú chi tiết 📝</label><textarea rows="5" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="soft-pastel-input resize-none" placeholder="Nhunz lưu ý gì thêm không?..." /></div>
+                                        <div className="flex flex-col gap-2"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5 tracking-tight">Ghi chú chi tiết 📝</label><textarea rows="5" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="soft-pastel-input resize-none" placeholder="Nhunz lưu ý gì thêm không?..." /></div>
                                     </div>
-                                    <button type="submit" className="w-full bg-[#5D4037] text-white font-black py-6 rounded-[2.5rem] shadow-xl flex items-center justify-center gap-4 transition-all uppercase text-xl hover:bg-stone-800">LƯU CHECKLIST & ĐỒNG BỘ 🎀</button>
+                                    <button type="submit" className="w-full bg-[#5D4037] text-white font-black py-6 rounded-[2.5rem] shadow-xl flex items-center justify-center gap-4 transition-all uppercase text-xl hover:bg-stone-800 tracking-widest active:scale-95">LƯU CHECKLIST & ĐỒNG BỘ 🎀</button>
                                 </form>
                             </div>
                         )}
@@ -329,43 +373,53 @@
                                 filteredTasks.map(task => (
                                     <div key={task.id} className={`bg-white rounded-[2.5rem] transition-all border ${task.outcomeStatus === 'Hoàn thành' ? 'opacity-70 border-transparent bg-pink-50/10' : 'border-pink-50 soft-shadow hover:shadow-xl hover:-translate-y-1'}`}>
                                         {(task.deadline === getNow().date || task.nextOccurrence === getNow().date) && task.outcomeStatus !== 'Hoàn thành' && <div className="h-2.5 w-full bg-rose-400 rounded-t-full"></div>}
-                                        <div className="p-8 flex flex-col md:flex-row items-start md:items-center gap-7">
-                                            <div className="cursor-pointer transform scale-110" onClick={() => handleUpdateTask(task.id, { outcomeStatus: task.outcomeStatus === 'Hoàn thành' ? 'Chưa làm' : 'Hoàn thành' })}>
-                                                {task.outcomeStatus === 'Hoàn thành' ? <Icon name="CheckCircle2" className="text-green-500" size={26}/> : <Icon name="Circle" className="text-stone-300" size={26}/>}
+                                        <div className="p-8 flex flex-col md:flex-row items-start md:items-center gap-7 text-[#5D4037]">
+                                            <div className="cursor-pointer transform scale-110 active:scale-90 transition-transform" onClick={() => handleUpdateTask(task.id, { outcomeStatus: task.outcomeStatus === 'Hoàn thành' ? 'Chưa làm' : 'Hoàn thành' })}>
+                                                {getOutcomeIcon(task.outcomeStatus)}
                                             </div>
                                             <div className="flex-1 cursor-pointer w-full" onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)}>
                                                 <div className="flex flex-wrap gap-2 mb-2">
-                                                    <span className="text-[7px] font-black px-2 py-1 rounded-full bg-stone-100 text-stone-500 uppercase">{task.classification}</span>
+                                                    <span className="text-[7px] font-black px-2.5 py-1 rounded-full bg-stone-100 text-stone-500 uppercase flex items-center justify-center min-w-[65px] text-center">{task.classification}</span>
                                                     <span className={getPriorityStyle(task.priority)} style={{fontSize: '7px', letterSpacing: '0.1em'}}>{task.priority.toUpperCase()}</span>
-                                                    <span className="text-[7px] font-black px-2 py-1 rounded-full bg-white border border-pink-100 text-pink-500 uppercase">{task.taskType}</span>
+                                                    <span className="text-[7px] font-black px-2.5 py-1 rounded-full bg-white border border-pink-100 text-pink-500 uppercase flex items-center justify-center min-w-[65px] text-center">{task.taskType}</span>
                                                 </div>
                                                 <h3 className={`text-xl font-bold text-stone-800 leading-tight ${task.outcomeStatus === 'Hoàn thành' ? 'line-through text-stone-400' : ''}`}>{task.taskName}</h3>
-                                                <div className="flex gap-4 mt-3 text-[10px] font-black text-stone-400 uppercase"><span className="flex items-center gap-1.5"><Icon name="UserCircle" size={12}/> PIC: {task.pic || 'Nhunz'}</span><span className="flex items-center gap-1.5"><Icon name="Box" size={12}/> {task.workGroup}</span></div>
+                                                <div className="flex gap-4 mt-3 text-[10px] font-black text-stone-400 uppercase tracking-tight">
+                                                    <span className="flex items-center gap-1.5"><Icon name="UserCircle" size={12}/> PIC: {task.pic || 'Nhunz'}</span>
+                                                    <span className="flex items-center gap-1.5"><Icon name="Box" size={12}/> {task.workGroup}</span>
+                                                </div>
                                             </div>
                                             <div className="flex gap-3">
-                                                <button onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)} className="h-12 w-12 rounded-[1.2rem] bg-stone-50 text-stone-400 hover:bg-white flex items-center justify-center shadow-sm">{expandedTask === task.id ? <Icon name="ChevronUp" /> : <Icon name="ChevronDown" />}</button>
-                                                <button onClick={() => setTasks(tasks.filter(t => t.id !== task.id))} className="h-12 w-12 rounded-[1.2rem] bg-rose-50 text-rose-400 hover:text-rose-600 flex items-center justify-center shadow-sm"><Icon name="Trash2" size={20}/></button>
+                                                <button onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)} className="h-12 w-12 rounded-[1.2rem] bg-stone-50 text-stone-400 hover:bg-white flex items-center justify-center shadow-sm transition-all">{expandedTask === task.id ? <Icon name="ChevronUp" /> : <Icon name="ChevronDown" />}</button>
+                                                <button onClick={() => setTasks(tasks.filter(t => t.id !== task.id))} className="h-12 w-12 rounded-[1.2rem] bg-rose-50 text-rose-400 hover:text-rose-600 flex items-center justify-center shadow-sm transition-all"><Icon name="Trash2" size={20}/></button>
                                             </div>
                                         </div>
                                         {expandedTask === task.id && (
-                                            <div className="px-12 pb-12 pt-6 border-t border-stone-50 bg-[#FFFDFF] animate-in fade-in slide-in-from-top-4 duration-500">
+                                            <div className="px-12 pb-12 pt-6 border-t border-stone-50 bg-[#FFFDFF] animate-in fade-in slide-in-from-top-4 duration-500 text-[#5D4037]">
                                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
                                                     <div className="space-y-4">
-                                                        <div className="flex flex-col border-l-4 pl-5 border-stone-100 py-1"><span className="text-[9px] font-black text-stone-400 uppercase">Ngày ghi checklist</span><span className="text-sm font-bold text-stone-800">{task.recordDate}</span></div>
-                                                        <div className="flex flex-col border-l-4 pl-5 border-stone-100 py-1"><span className="text-[9px] font-black text-stone-400 uppercase">Deadline</span><span className="text-sm font-bold text-rose-600">{task.deadline || "Vô thời hạn"}</span></div>
-                                                        <div className="flex flex-col border-l-4 pl-5 border-stone-100 py-1"><span className="text-[9px] font-black text-stone-400 uppercase">Leadtime</span><span className="text-sm font-bold text-pink-500">{task.leadtime}</span></div>
+                                                        <div className="flex flex-col border-l-4 pl-5 border-stone-100 py-1"><span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Ngày ghi checklist</span><span className="text-sm font-bold text-stone-800">{task.recordDate}</span></div>
+                                                        <div className="flex flex-col border-l-4 pl-5 border-stone-100 py-1"><span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Deadline</span><span className="text-sm font-bold text-rose-600">{task.deadline || "Vô thời hạn"}</span></div>
+                                                        <div className="flex flex-col border-l-4 pl-5 border-stone-100 py-1"><span className="text-[9px] font-black text-stone-400 uppercase tracking-widest">Leadtime xử lý</span><span className="text-sm font-bold text-pink-600">{task.leadtime}</span></div>
                                                     </div>
                                                     <div className="space-y-6 bg-stone-50/50 p-6 rounded-[2rem] border border-stone-100">
-                                                        <div className="flex flex-col gap-2"><label className="text-[9px] font-black text-stone-500 uppercase ml-2 text-center">Cập nhật trạng thái 🎯</label><select value={task.outcomeStatus} onChange={(e) => handleUpdateTask(task.id, { outcomeStatus: e.target.value })} className="bg-white border-2 border-stone-100 rounded-2xl p-3 text-xs font-bold outline-none shadow-sm"><option value="Chưa làm">Chưa làm</option><option value="Đang làm">Đang làm</option><option value="Hoàn thành">Hoàn thành</option><option value="Không làm">Không làm</option></select></div>
-                                                        <div className="flex flex-col gap-2"><label className="text-[9px] font-black text-stone-500 uppercase ml-2 text-center">Ghi chú 📝</label><textarea defaultValue={task.notes} onBlur={(e) => handleUpdateTask(task.id, { notes: e.target.value })} className="bg-white border-2 border-stone-100 rounded-2xl p-4 text-xs font-bold resize-none h-32 outline-none focus:border-pink-300 shadow-sm" placeholder="Sửa xong nhấn ra ngoài để lưu..."/></div>
+                                                        <div className="flex flex-col gap-2"><label className="text-[9px] font-black text-stone-500 uppercase ml-2 text-center tracking-widest">Cập nhật trạng thái 🎯</label>
+                                                            <select value={task.outcomeStatus} onChange={(e) => handleUpdateTask(task.id, { outcomeStatus: e.target.value })} className="bg-white border-2 border-stone-100 rounded-2xl p-3 text-xs font-bold outline-none shadow-sm">
+                                                                <option value="Chưa làm">⚪ Chưa làm</option>
+                                                                <option value="Đang làm">⏳ Đang làm</option>
+                                                                <option value="Hoàn thành">✅ Hoàn thành</option>
+                                                                <option value="Không làm">🚫 Không làm</option>
+                                                            </select>
+                                                        </div>
+                                                        <div className="flex flex-col gap-2"><label className="text-[9px] font-black text-stone-500 uppercase ml-2 text-center tracking-widest">Ghi chú 📝</label><textarea defaultValue={task.notes} onBlur={(e) => handleUpdateTask(task.id, { notes: e.target.value })} className="bg-white border-2 border-stone-100 rounded-2xl p-4 text-xs font-bold resize-none h-32 outline-none focus:border-pink-300 shadow-sm" placeholder="Sửa xong nhấn ra ngoài để lưu..."/></div>
                                                     </div>
                                                     <div className="bg-white p-7 rounded-[2rem] border-l-8 border-pink-200 soft-shadow flex flex-col justify-center">
-                                                        <p className="text-[10px] font-black text-stone-400 uppercase mb-4 flex items-center gap-2"><Icon name="Sparkles" size={14} className="text-pink-300"/> TÓM TẮT VẬN HÀNH</p>
+                                                        <p className="text-[10px] font-black text-stone-400 uppercase mb-4 flex items-center gap-2 tracking-widest"><Icon name="Sparkles" size={14} className="text-pink-300"/> TÓM TẮT VẬN HÀNH</p>
                                                         <div className="space-y-3">
                                                             <div className="flex justify-between border-b border-stone-50 pb-2"><span className="text-[8px] font-black text-stone-400">DỰ ÁN:</span><span className="text-[9px] font-bold text-stone-700">{task.project}</span></div>
                                                             <div className="flex justify-between border-b border-stone-50 pb-2"><span className="text-[8px] font-black text-stone-400">BẮT ĐẦU:</span><span className="text-[9px] font-bold text-stone-700">{task.startDate} {task.startTime}</span></div>
                                                             <div className="flex justify-between border-b border-stone-50 pb-2"><span className="text-[8px] font-black text-stone-400">KẾT THÚC:</span><span className="text-[9px] font-bold text-stone-700">{task.endDate || 'Đang thực hiện'}</span></div>
-                                                            {task.relevantLink && <a href={task.relevantLink} target="_blank" className="text-[9px] font-black text-blue-500 underline flex items-center gap-1 mt-2">Mở link tài liệu <Icon name="ExternalLink" size={12}/></a>}
+                                                            {task.relevantLink && <a href={task.relevantLink} target="_blank" className="text-[9px] font-black text-blue-500 underline flex items-center gap-1 mt-2 flex items-center gap-1 transition-colors hover:text-blue-700">Mở link tài liệu <Icon name="ExternalLink" size={12}/></a>}
                                                         </div>
                                                     </div>
                                                 </div>
@@ -376,7 +430,7 @@
                             )}
                         </div>
                     </main>
-                    <footer className="mt-20 text-center text-stone-300 uppercase font-black text-[9px] tracking-[0.4em] pb-10">Created for Nhunz with Love • GitHub Edition v13.1</footer>
+                    <footer className="mt-20 text-center text-stone-300 uppercase font-black text-[9px] tracking-[0.4em] pb-10">Created for Nhunz with Love • GitHub Edition v13.4</footer>
                 </div>
             );
         };
