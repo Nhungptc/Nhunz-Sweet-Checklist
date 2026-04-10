@@ -1,0 +1,663 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  updateDoc, 
+  deleteDoc, 
+  doc, 
+  serverTimestamp 
+} from 'firebase/firestore';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  signInWithCustomToken, 
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { 
+  Plus, 
+  Trash2, 
+  CheckCircle2, 
+  Circle, 
+  ClipboardList, 
+  AlertCircle,
+  Cloud,
+  User,
+  Loader2,
+  Check,
+  Calendar,
+  Clock,
+  Link as LinkIcon,
+  Users,
+  ChevronDown,
+  ChevronUp,
+  Box,
+  FileSpreadsheet,
+  ExternalLink,
+  Info,
+  Settings,
+  Download,
+  Target,
+  Zap,
+  Filter,
+  Webhook,
+  AlertTriangle,
+  Heart,
+  Sparkles,
+  XCircle,
+  Timer,
+  Layout,
+  Bell,
+  RefreshCcw,
+  Save,
+  UserCircle,
+  CalendarDays
+} from 'lucide-react';
+
+// --- Firebase Configuration ---
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'nhunz-checklist-final-v12';
+
+const App = () => {
+  const [user, setUser] = useState(null);
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [showReminders, setShowReminders] = useState(false); 
+  const [expandedTask, setExpandedTask] = useState(null);
+  const [syncStatus, setSyncStatus] = useState({ type: null, message: '' });
+  
+  const webhookUrl = 'https://script.google.com/macros/s/AKfycbx3mib4nGZaXLJsy0BJnXocMdng-nzMMOPeJwsyJvh5p8mTbBpLBaaSC_AgKC5Z-TGS/exec';
+  const scriptEditorUrl = 'https://script.google.com/u/0/home/projects/1RwBNHPSmKAJQjLhGBJL-n0GHQ6yK0nFLroEc858noQG5vr8LcOzvn3aj/edit';
+
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [deptFilter, setDeptFilter] = useState('All');
+
+  const getNow = () => {
+    const now = new Date();
+    return {
+      date: now.toISOString().split('T')[0],
+      time: now.toTimeString().split(' ')[0].substring(0, 5)
+    };
+  };
+
+  const initialForm = {
+    taskName: '',
+    classification: 'Cá nhân',
+    project: 'TITAN F2 - Nhân sự',
+    workGroup: 'Hoạt động cốt lõi & Hỗ trợ',
+    taskType: 'Phát sinh',
+    nextOccurrence: '',
+    recordDate: getNow().date,
+    deadline: '',
+    startDate: getNow().date,
+    startTime: getNow().time,
+    endDate: '',
+    endTime: '',
+    priority: '2 - Plan',
+    pic: '',
+    outcomeStatus: 'Chưa làm',
+    relevantLink: '',
+    notes: ''
+  };
+  const [formData, setFormData] = useState(initialForm);
+
+  const dailyQuotes = useMemo(() => [
+    { title: "Nhunz ơi, ngày mới thật rực rỡ nhé! 🌸", sub: "Mọi đầu việc đều sẽ hoàn thành thật xinh đẹp cùng Nhunz! ✨" },
+    { title: "Chúc Nhunz một ngày làm việc suôn sẻ! ✨", sub: "Năng lượng tích cực sẽ giúp Nhunz giải quyết mọi checklist! 🎀" },
+    { title: "Nhunz hãy tự tin và tỏa sáng nhé! 🎀", sub: "Mỗi bước đi của Nhunz đều mang lại giá trị tuyệt vời! 💖" },
+    { title: "Một nụ cười của Nhunz làm ngày hôm nay đẹp hơn! 💖", sub: "Hãy cùng Nhunz tạo nên một ngày làm việc thật hiệu quả! 🌟" },
+    { title: "Nhunz cố gắng lên, thành công đang chờ! 🌟", sub: "Mọi nỗ lực của Nhunz hôm nay đều sẽ được ghi nhận! 🌷" },
+    { title: "Chúc Nhunz một ngày làm việc nhẹ nhàng! 🌷", sub: "Xử lý checklist thật êm ái như những đóa hoa Nhunz nhé! 👑" },
+    { title: "Nhunz là giỏi nhất, hãy tỏa sáng nhé! 👑", sub: "Sẵn sàng cùng Nhunz chinh phục mọi mục tiêu khó khăn nhất! 🔥" }
+  ], []);
+
+  const currentQuote = useMemo(() => {
+    const dayIndex = new Date().getDay();
+    return dailyQuotes[dayIndex];
+  }, [dailyQuotes]);
+
+  const tasksToRemind = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    return tasks.filter(t => 
+      (t.deadline === todayStr || t.nextOccurrence === todayStr) && 
+      t.outcomeStatus !== 'Hoàn thành'
+    );
+  }, [tasks]);
+
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
+        }
+      } catch (error) { console.error("Auth error:", error); }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, setUser);
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    setLoading(true);
+    const tasksCollection = collection(db, 'artifacts', appId, 'public', 'data', 'tasks');
+    const unsubscribe = onSnapshot(tasksCollection, (snapshot) => {
+      const tasksData = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
+      setTasks(tasksData.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0)));
+      setLoading(false);
+    }, (err) => { setLoading(false); });
+    return () => unsubscribe();
+  }, [user]);
+
+  const syncToSheet = async (data, action = 'CREATE') => {
+    if (!webhookUrl) return;
+    try {
+      await fetch(webhookUrl, {
+        method: 'POST',
+        mode: 'no-cors',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ...data, action })
+      });
+      setSyncStatus({ type: 'success', message: action === 'CREATE' ? 'Đã lưu vào WEB! 🌸' : 'Đã cập nhật WEB! ✨' });
+      setTimeout(() => setSyncStatus({ type: null, message: '' }), 3000);
+    } catch (err) { setSyncStatus({ type: 'error', message: 'Lỗi đồng bộ Sheet.' }); }
+  };
+
+  const calculateLeadtimeValue = (startD, startT, endD, endT) => {
+    if (!startD || !startT || !endD || !endT) return "N/A";
+    try {
+      const start = new Date(`${startD}T${startT}`);
+      const end = new Date(`${endD}T${endT}`);
+      const diffMs = end - start;
+      if (diffMs < 0) return "Lỗi thời gian";
+      const hrs = Math.floor(diffMs / 3600000);
+      const mins = Math.round((diffMs % 3600000) / 60000);
+      return `${hrs}h ${mins}m`;
+    } catch (e) { return "N/A"; }
+  };
+
+  const handleAddTask = async (e) => {
+    e.preventDefault();
+    if (!formData.taskName || !user) return;
+    setSyncing(true);
+    try {
+      let finalTaskData = { ...formData };
+      if (finalTaskData.outcomeStatus === 'Hoàn thành') {
+        const now = new Date();
+        finalTaskData.endDate = now.toISOString().split('T')[0];
+        finalTaskData.endTime = now.toTimeString().split(' ')[0].substring(0, 5);
+        finalTaskData.completed = true;
+      }
+      finalTaskData.leadtime = calculateLeadtimeValue(finalTaskData.startDate, finalTaskData.startTime, finalTaskData.endDate, finalTaskData.endTime);
+      finalTaskData.createdAt = serverTimestamp();
+      finalTaskData.createdBy = user.uid;
+
+      const docRef = await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'tasks'), finalTaskData);
+      if (webhookUrl) await syncToSheet({ ...finalTaskData, id: docRef.id }, 'CREATE');
+      
+      setFormData(initialForm);
+      setShowForm(false);
+    } catch (err) { setSyncStatus({ type: 'error', message: 'Lỗi lưu trữ Cloud.' }); }
+    finally { setSyncing(false); }
+  };
+
+  const handleUpdateTask = async (taskId, fieldsToUpdate) => {
+    if (!user) return;
+    setSyncing(true);
+    try {
+      const taskRef = doc(db, 'artifacts', appId, 'public', 'data', 'tasks', taskId);
+      const originalTask = tasks.find(t => t.id === taskId);
+      let updatedData = { ...originalTask, ...fieldsToUpdate };
+
+      if (fieldsToUpdate.outcomeStatus === 'Hoàn thành' && originalTask.outcomeStatus !== 'Hoàn thành') {
+        const now = new Date();
+        updatedData.endDate = now.toISOString().split('T')[0];
+        updatedData.endTime = now.toTimeString().split(' ')[0].substring(0, 5);
+        updatedData.completed = true;
+      } else if (fieldsToUpdate.outcomeStatus && fieldsToUpdate.outcomeStatus !== 'Hoàn thành') {
+        updatedData.completed = false;
+      }
+
+      updatedData.leadtime = calculateLeadtimeValue(updatedData.startDate, updatedData.startTime, updatedData.endDate, updatedData.endTime);
+      await updateDoc(taskRef, updatedData);
+      if (webhookUrl) await syncToSheet({ ...updatedData, id: taskId }, 'UPDATE');
+    } catch (err) { setSyncStatus({ type: 'error', message: 'Lỗi cập nhật.' }); }
+    finally {
+      setSyncing(false);
+    }
+  };
+
+  const deleteTask = async (id) => {
+    if (!user) return;
+    try { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'tasks', id)); } catch (err) { console.error(err); }
+  };
+
+  const filteredTasks = tasks.filter(task => {
+    const matchesStatus = statusFilter === 'All' || (statusFilter === 'Done' ? task.outcomeStatus === 'Hoàn thành' : task.outcomeStatus === statusFilter);
+    const matchesDept = deptFilter === 'All' || task.classification === deptFilter;
+    return matchesStatus && matchesDept;
+  });
+
+  const getPriorityStyle = (p) => {
+    if (p?.startsWith('1')) return 'bg-[#5D4037] text-white font-black';
+    if (p?.startsWith('2')) return 'bg-[#8D6E63] text-white font-bold'; 
+    if (p?.startsWith('3')) return 'bg-[#D7CCC8] text-[#5D4037] font-bold'; 
+    return 'bg-pink-50 text-pink-400 font-medium';
+  };
+
+  const getOutcomeIcon = (status) => {
+    switch (status) {
+      case 'Hoàn thành': return <CheckCircle2 size={22} className="text-green-500" strokeWidth={3} />;
+      case 'Đang làm': return <Timer size={22} className="text-blue-500" strokeWidth={3} />;
+      case 'Không làm': return <XCircle size={22} className="text-rose-400" strokeWidth={3} />;
+      default: return <Circle size={22} className="text-stone-400" strokeWidth={3} />;
+    }
+  };
+
+  const openScriptEditor = () => {
+    window.open(scriptEditorUrl, '_blank');
+  };
+
+  if (loading && !user) return (
+    <div className="min-h-screen flex items-center justify-center bg-[#FFF9FB]">
+      <Loader2 className="animate-spin text-[#FFB7C5]" size={56} />
+    </div>
+  );
+
+  return (
+    <div className="min-h-screen bg-[#FFF9FB] text-slate-700 pb-20 selection:bg-pink-100 main-app-container">
+      <nav className="bg-white/40 backdrop-blur-md border-b border-pink-50 sticky top-0 z-50 px-8 py-5 flex justify-between items-center shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="bg-[#FFB7C5] p-3 rounded-[1.2rem] text-white shadow-lg shadow-pink-100">
+            <Heart size={20} fill="currentColor" />
+          </div>
+          <h1 className="text-xl font-black tracking-tight text-pink-500 uppercase leading-none">Nhunz's Sweet</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <button 
+            onClick={openScriptEditor} 
+            className="p-2.5 rounded-[1rem] bg-pink-50/50 text-pink-400 hover:text-pink-600 transition-colors shadow-sm flex items-center gap-2 px-4"
+          >
+            <Settings size={18} />
+            <span className="text-[10px] font-black uppercase tracking-widest hidden sm:inline">Cài đặt</span>
+          </button>
+          <button 
+            onClick={() => setShowReminders(!showReminders)}
+            className={`h-10 w-10 rounded-full flex items-center justify-center border shadow-sm relative transition-all ${showReminders ? 'bg-pink-100 border-pink-200' : 'bg-white border-pink-100'}`}
+          >
+             <Bell size={18} className={tasksToRemind.length > 0 ? "text-rose-500 animate-swing" : "text-pink-200"} />
+             {tasksToRemind.length > 0 && (
+               <span className="absolute -top-1 -right-1 bg-rose-500 text-white text-[8px] font-black w-4 h-4 rounded-full flex items-center justify-center border border-white">
+                 {tasksToRemind.length}
+               </span>
+             )}
+          </button>
+        </div>
+      </nav>
+
+      {syncStatus.message && (
+        <div className={`fixed top-24 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 font-bold text-sm animate-in slide-in-from-top-4 ${
+          syncStatus.type === 'error' ? 'bg-rose-500 text-white' : 
+          syncStatus.type === 'success' ? 'bg-[#FFB7C5] text-white' : 'bg-slate-800 text-white'
+        }`}>
+          {syncStatus.type === 'error' ? <AlertTriangle size={16}/> : <Check size={16}/>}
+          {syncStatus.message}
+        </div>
+      )}
+
+      <main className="max-w-6xl mx-auto p-8">
+        <div className="mb-14 text-center relative">
+          <div className="inline-flex items-center gap-2 px-4 py-2 bg-white border border-pink-50 rounded-full shadow-sm mb-6 animate-pulse">
+            <Sparkles size={14} className="text-pink-400" />
+            <span className="text-[10px] font-black text-[#5D4037] tracking-wider uppercase">Message for Nhunz</span>
+          </div>
+          <h2 className="text-4xl font-black text-[#5D4037] mb-4 tracking-tight leading-tight drop-shadow-sm text-center">
+            {currentQuote.title}
+          </h2>
+          <p className="text-pink-500 text-sm font-bold italic opacity-90 uppercase tracking-widest text-center">
+            {currentQuote.sub}
+          </p>
+        </div>
+
+        {showReminders && tasksToRemind.length > 0 && (
+          <div className="mb-12 p-6 bg-rose-50 border-2 border-dashed border-rose-200 rounded-[2rem] animate-in slide-in-from-top-4 duration-500 relative shadow-inner">
+            <button onClick={() => setShowReminders(false)} className="absolute top-4 right-4 text-rose-300 hover:text-rose-500"><XCircle size={20}/></button>
+            <div className="flex items-center gap-3 mb-4">
+               <div className="p-2 bg-rose-500 rounded-[1rem] text-white shadow-lg shadow-rose-100"><Bell size={20}/></div>
+               <div>
+                 <h4 className="text-sm font-black text-[#5D4037] uppercase tracking-widest leading-none">NHẮC NHỞ CHO NHUNZ</h4>
+                 <p className="text-xs text-rose-400 font-bold italic mt-1">Nhunz nhớ kiểm tra {tasksToRemind.length} việc hôm nay nhé!</p>
+               </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {tasksToRemind.map(t => (
+                <div key={t.id} className="bg-white/80 p-3 rounded-2xl border border-rose-100 text-[11px] font-bold text-stone-600 flex justify-between items-center shadow-sm">
+                  <span className="truncate pr-4">{t.taskName}</span>
+                  <span className="text-[9px] bg-rose-100 px-2 py-0.5 rounded text-rose-500 shrink-0">{t.deadline || t.nextOccurrence}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-6 mb-12">
+          <QuickStat label="Tổng đầu việc" value={tasks.length} icon={<Heart size={14} fill="currentColor"/>} />
+          <QuickStat label="Đang chờ Nhunz" value={tasks.filter(t => t.outcomeStatus !== 'Hoàn thành').length} icon={<Zap size={14} fill="currentColor"/>} isAlert />
+        </div>
+
+        <div className="flex flex-col lg:flex-row gap-5 mb-10">
+          <button onClick={() => {
+            if (!showForm) setFormData({...initialForm, ...getNow(), recordDate: getNow().date}); 
+            setShowForm(!showForm);
+          }} className={`flex-1 p-6 rounded-[2rem] flex items-center justify-center gap-4 font-black text-lg transition-all shadow-xl hover:-translate-y-1 ${showForm ? 'bg-[#5D4037] text-white shadow-pink-200' : 'bg-[#FFB7C5] text-white shadow-pink-200 hover:bg-[#FFA4B5]'}`}>
+            {showForm ? <><ChevronUp size={22}/> THU GỌN FORM</> : <><Plus size={22}/> THÊM CHECKLIST CHO NHUNZ 🎀</>}
+          </button>
+          
+          <div className="flex items-center gap-2 bg-white p-3 rounded-[2rem] border border-pink-50 shadow-sm overflow-hidden">
+            <div className="flex flex-col px-6 border-r border-pink-50 min-w-[140px]">
+              <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">PHÂN LOẠI</span>
+              <select 
+                value={deptFilter} 
+                onChange={e => setDeptFilter(e.target.value)} 
+                className="bg-transparent border-none text-[10px] font-black outline-none text-[#5D4037] uppercase tracking-widest appearance-none cursor-pointer p-0 m-0"
+              >
+                <option value="All">Tất cả</option>
+                <option value="Vùng">Vùng</option>
+                <option value="Regions">Regions</option>
+                <option value="Cá nhân">Cá nhân</option>
+                <option value="khác">Khác</option>
+              </select>
+            </div>
+            
+            <div className="flex flex-col px-6 min-w-[140px]">
+              <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest mb-1">ĐẦU RA</span>
+              <select 
+                value={statusFilter} 
+                onChange={e => setStatusFilter(e.target.value)} 
+                className="bg-transparent border-none text-[10px] font-black outline-none text-[#5D4037] uppercase tracking-widest appearance-none pr-8 cursor-pointer p-0 m-0"
+              >
+                <option value="All">Tất cả</option>
+                <option value="Đang làm">Đang làm</option>
+                <option value="Done">Đã xong</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        {showForm && (
+          <div className="bg-white border border-pink-50 rounded-[3rem] p-10 mb-12 shadow-[0_25px_60px_-15px_rgba(93,64,55,0.1)] animate-in zoom-in-95 duration-500">
+            <form onSubmit={handleAddTask} className="space-y-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                <div className="space-y-6">
+                  <SectionTitle icon={<Layout size={16}/>} label="PHÂN LOẠI & PROJECT" />
+                  <InputField label="Tên công việc 🌵"><input required value={formData.taskName} onChange={e => setFormData({...formData, taskName: e.target.value})} className="soft-pastel-input" placeholder="Viết việc cần làm..." /></InputField>
+                  <InputField label="Phân loại 🐣">
+                    <select value={formData.classification} onChange={e => setFormData({...formData, classification: e.target.value})} className="soft-pastel-select">
+                      <option value="Vùng">Vùng</option>
+                      <option value="Regions">Regions</option>
+                      <option value="Cá nhân">Cá nhân</option>
+                      <option value="khác">Khác</option>
+                    </select>
+                  </InputField>
+                  <InputField label="Project ✨">
+                    <select value={formData.project} onChange={e => setFormData({...formData, project: e.target.value})} className="soft-pastel-select">
+                      <option value="TITAN F2 - Nhân sự">TITAN F2 - Nhân sự</option>
+                      <option value="TITAN F2 - Mô hình Giao lấy & Chính sách">TITAN F2 - Mô hình Giao lấy & Chính sách</option>
+                      <option value="Champion">Champion</option>
+                      <option value="Khác">Khác</option>
+                      <option value="Không">Không</option>
+                    </select>
+                  </InputField>
+                </div>
+
+                <div className="space-y-6">
+                  <SectionTitle icon={<RefreshCcw size={16}/>} label="NHÓM & ĐỊNH KỲ" />
+                  <InputField label="Nhóm công việc 📂">
+                    <select value={formData.workGroup} onChange={e => setFormData({...formData, workGroup: e.target.value})} className="soft-pastel-select">
+                      <option value="Hoạt động cốt lõi & Hỗ trợ">Hoạt động cốt lõi & Hỗ trợ</option>
+                      <option value="Quản trị & Giao tiếp">Quản trị & Giao tiếp</option>
+                      <option value="Lập kế hoạch & Phân tích">Lập kế hoạch & Phân tích</option>
+                      <option value="Đào tạo & Phát triển">Đào tạo & Phát triển</option>
+                    </select>
+                  </InputField>
+                  <InputField label="Loại hình🔄">
+                    <select value={formData.taskType} onChange={e => setFormData({...formData, taskType: e.target.value})} className="soft-pastel-select">
+                      <option value="Phát sinh">Phát sinh</option>
+                      <option value="Định kỳ">Định kỳ</option>
+                    </select>
+                  </InputField>
+                  {formData.taskType === 'Định kỳ' && (
+                    <InputField label="Ngày nhắc lại lần sau 🔔">
+                      <input type="date" value={formData.nextOccurrence} onChange={e => setFormData({...formData, nextOccurrence: e.target.value})} className="soft-pastel-input bg-white border-rose-200" />
+                    </InputField>
+                  )}
+                  <InputField label="PIC 👤"><input value={formData.pic} onChange={e => setFormData({...formData, pic: e.target.value})} className="soft-pastel-input" placeholder="Tên PIC..." /></InputField>
+                </div>
+
+                <div className="space-y-6">
+                  <SectionTitle icon={<Target size={16}/>} label="ƯU TIÊN & TRẠNG THÁI" />
+                  <InputField label="Ưu tiên ⭐️">
+                    <select value={formData.priority} onChange={e => setFormData({...formData, priority: e.target.value})} className={`soft-pastel-select transition-all ${getPriorityStyle(formData.priority)}`}>
+                      <option value="1 - Urgent">🔥 1 - Urgent (Rất gấp)</option>
+                      <option value="2 - Plan">📅 2 - Plan (Kế hoạch)</option>
+                      <option value="3 - Delegate">🤝 3 - Delegate (Ủy quyền)</option>
+                      <option value="4 - Ignore">☁️ 4 - Ignore (Bỏ qua)</option>
+                    </select>
+                  </InputField>
+                  <InputField label="Đầu ra 🎯">
+                    <select value={formData.outcomeStatus} onChange={e => setFormData({...formData, outcomeStatus: e.target.value})} className="soft-pastel-select font-bold text-[#5D4037]">
+                      <option value="Chưa làm">⚪ Chưa làm</option>
+                      <option value="Đang làm">⏳ Đang làm</option>
+                      <option value="Hoàn thành">✅ Hoàn thành</option>
+                      <option value="Không làm">🚫 Không làm</option>
+                    </select>
+                  </InputField>
+                  <div className="bg-[#FFFBFC] p-4 rounded-[1.5rem] border border-pink-50 shadow-inner">
+                    <InputField label="Hạn chót nhắc nhở 🗓️"><input type="date" value={formData.deadline} onChange={e => setFormData({...formData, deadline: e.target.value})} className="soft-pastel-input bg-white" /></InputField>
+                  </div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-10 pt-8 border-t border-stone-100">
+                <div className="space-y-6">
+                  <div className="flex gap-4 items-end">
+                    <InputField label="Bắt đầu 🕓"><input type="date" value={formData.startDate} onChange={e => setFormData({...formData, startDate: e.target.value})} className="soft-pastel-input bg-[#FFF8FA] text-[10px]" /></InputField>
+                    <div className="flex-1">
+                       <InputField label="Giờ bắt đầu">
+                        <div className="flex gap-2">
+                          <input type="time" value={formData.startTime} onChange={e => setFormData({...formData, startTime: e.target.value})} className="soft-pastel-input bg-[#FFF8FA] text-[10px] flex-1" />
+                          <button type="button" onClick={() => setFormData({...formData, ...getNow()})} className="bg-pink-50 p-2 rounded-xl text-pink-400 hover:bg-pink-100 transition-colors" title="Lấy giờ hiện tại"><RefreshCcw size={16}/></button>
+                        </div>
+                       </InputField>
+                    </div>
+                  </div>
+                  <InputField label="Link tài liệu 🔗"><input type="url" value={formData.relevantLink} onChange={e => setFormData({...formData, relevantLink: e.target.value})} className="soft-pastel-input" placeholder="Dán link tài liệu..." /></InputField>
+                </div>
+                <InputField label="Ghi chú chi tiết 📝"><textarea rows="5" value={formData.notes} onChange={e => setFormData({...formData, notes: e.target.value})} className="soft-pastel-input resize-none" placeholder="Nhunz muốn lưu ý gì cho task này không?..." /></InputField>
+              </div>
+
+              <button type="submit" disabled={syncing} className="w-full bg-[#5D4037] text-white font-black py-6 rounded-[2.5rem] shadow-xl flex items-center justify-center gap-4 transition-all active:scale-95 disabled:opacity-50 text-xl tracking-tight uppercase hover:bg-stone-800 shadow-stone-200">
+                {syncing ? <Loader2 className="animate-spin" /> : <Heart size={24} fill="white" />} LƯU CHECKLIST & ĐỒNG BỘ 🎀
+              </button>
+            </form>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-6">
+          {filteredTasks.length === 0 ? (
+            /* CẬP NHẬT: Màu đậm hơn cho thông báo trống */
+            <div className="text-center py-32 bg-white rounded-[3rem] border-2 border-dashed border-pink-200 text-pink-700 font-black italic shadow-sm">
+              {loading ? "Đang quét dữ liệu Nhunz chờ xíu..." : "Hôm nay trống trơn rồi Nhunz ơi ☁️"}
+            </div>
+          ) : (
+            filteredTasks.map(task => (
+              <div key={task.id} className={`bg-white rounded-[2.5rem] transition-all overflow-hidden border ${task.outcomeStatus === 'Hoàn thành' ? 'border-transparent bg-pink-50/10 opacity-70' : 'border-pink-50 shadow-sm hover:shadow-[0_20px_60px_rgba(255,183,197,0.18)] hover:-translate-y-1'}`}>
+                {(task.deadline === new Date().toISOString().split('T')[0] || task.nextOccurrence === new Date().toISOString().split('T')[0]) && task.outcomeStatus !== 'Hoàn thành' && (
+                  <div className="h-2.5 w-full bg-rose-400"></div>
+                )}
+
+                <div className="p-8 flex flex-col md:flex-row items-start md:items-center gap-7">
+                  <div className="flex items-center justify-center transform scale-110 cursor-pointer" onClick={() => handleUpdateTask(task.id, { outcomeStatus: task.outcomeStatus === 'Hoàn thành' ? 'Chưa làm' : 'Hoàn thành' })}>
+                    {getOutcomeIcon(task.outcomeStatus)}
+                  </div>
+                  <div className="flex-1 cursor-pointer w-full" onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)}>
+                    <div className="flex flex-wrap items-center gap-3 mb-3">
+                      <span className="text-[7px] font-black px-2.5 py-1 rounded-full bg-stone-100 text-stone-500 uppercase tracking-widest">{task.classification}</span>
+                      <span className={`text-[7px] font-black px-2.5 py-1 rounded-full uppercase tracking-widest shadow-sm ${getPriorityStyle(task.priority)}`}>{task.priority}</span>
+                      <span className={`text-[7px] font-black px-2.5 py-1 rounded-full border border-pink-100 uppercase tracking-widest flex items-center gap-1 bg-white text-pink-500`}>
+                        {task.taskType}
+                      </span>
+                    </div>
+                    <h3 className={`text-xl font-bold text-stone-800 leading-tight ${task.outcomeStatus === 'Hoàn thành' ? 'line-through text-stone-400 opacity-60' : ''}`}>
+                      {task.taskName}
+                    </h3>
+                    <div className="flex flex-wrap gap-5 mt-3 text-[10px] font-black text-stone-400 uppercase tracking-tight">
+                      <span className="flex items-center gap-1.5"><UserCircle size={12} className="text-pink-300"/> PIC: {task.pic || 'Nhunz'}</span>
+                      <span className="flex items-center gap-1.5"><Box size={12} className="text-pink-300"/> {task.workGroup}</span>
+                    </div>
+                  </div>
+                  <div className="flex gap-3 self-end md:self-center">
+                    <button onClick={() => setExpandedTask(expandedTask === task.id ? null : task.id)} className="h-12 w-12 flex items-center justify-center rounded-[1.2rem] bg-stone-50 text-stone-400 hover:bg-white transition-all shadow-sm">{expandedTask === task.id ? <ChevronUp size={24}/> : <ChevronDown size={24}/>}</button>
+                    <button onClick={() => deleteTask(task.id)} className="h-12 w-12 flex items-center justify-center rounded-[1.2rem] bg-rose-50 text-rose-400 hover:text-rose-600 transition-all"><Trash2 size={20}/></button>
+                  </div>
+                </div>
+                
+                {expandedTask === task.id && (
+                  <div className="px-12 pb-12 pt-6 border-t border-stone-50 bg-[#FFFDFF] animate-in fade-in slide-in-from-top-8 duration-700">
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+                      <div className="space-y-4">
+                        <InfoItem label="🌸 Leadtime xử lý" value={task.leadtime} bold color="pink" />
+                        <InfoItem label="🗓️ Ngày ghi" value={task.recordDate} />
+                        <InfoItem label="📅 Deadline Nhắc" value={task.deadline || "Vô thời hạn"} highlight={task.deadline === new Date().toISOString().split('T')[0]} />
+                        {task.nextOccurrence && <InfoItem label="🔔 Nhắc lại tiếp theo" value={task.nextOccurrence} bold color="pink" />}
+                      </div>
+                      
+                      <div className="space-y-6 bg-[#FAF9F8] p-7 rounded-[2.5rem] border border-stone-100">
+                        <SectionTitle icon={<Target size={14}/>} label="CHỈNH SỬA & HOÀN THÀNH" />
+                        
+                        <div className="flex flex-col gap-2">
+                           <label className="text-[9px] font-black text-[#5D4037] uppercase tracking-widest ml-2 text-center">Trạng thái đầu ra 🎯</label>
+                           <select 
+                            value={task.outcomeStatus} 
+                            onChange={(e) => handleUpdateTask(task.id, { outcomeStatus: e.target.value })}
+                            className="bg-white border-2 border-stone-100 rounded-2xl p-4 text-xs font-bold text-[#5D4037] outline-none focus:border-pink-300 shadow-sm"
+                           >
+                              <option value="Chưa làm">⚪ Chưa làm</option>
+                              <option value="Đang làm">⏳ Đang làm</option>
+                              <option value="Hoàn thành">✅ Hoàn thành (Auto-Time)</option>
+                              <option value="Không làm">🚫 Không làm</option>
+                           </select>
+                        </div>
+
+                        <div className="flex flex-col gap-2">
+                           <label className="text-[9px] font-black text-[#5D4037] uppercase tracking-widest ml-2 text-center">Ghi chú 📝</label>
+                           <textarea 
+                             defaultValue={task.notes}
+                             onBlur={(e) => {
+                               if (e.target.value !== task.notes) {
+                                 handleUpdateTask(task.id, { notes: e.target.value });
+                               }
+                             }}
+                             className="bg-white border-2 border-stone-100 rounded-2xl p-4 text-xs font-bold text-stone-600 outline-none focus:border-pink-300 resize-none h-32 shadow-sm"
+                             placeholder="Sửa xong nhấn ra ngoài để lưu nhé..."
+                           />
+                        </div>
+                      </div>
+
+                      <div className="bg-white p-7 rounded-[2.5rem] border border-stone-100 shadow-sm flex flex-col justify-center border-l-8 border-l-pink-200">
+                        <p className="text-[10px] font-black text-[#5D4037] uppercase mb-4 tracking-widest flex items-center gap-2"><Sparkles size={14} className="text-pink-400"/> TỔNG HỢP VẬN HÀNH</p>
+                        <div className="space-y-3">
+                           <SummaryItem label="Project" value={task.project} />
+                           <SummaryItem label="PIC" value={task.pic || "Nhunz"} />
+                           <SummaryItem label="Bắt đầu" value={`${task.startDate} ${task.startTime}`} />
+                           <SummaryItem label="Kết thúc" value={`${task.endDate || 'Chưa xong'} ${task.endTime || ''}`} />
+                        </div>
+                        {syncing && (
+                          <div className="mt-6 flex items-center justify-center gap-2 text-pink-400 animate-pulse">
+                            <Loader2 size={12} className="animate-spin" />
+                            <span className="text-[9px] font-black uppercase">Syncing...</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </main>
+
+      <footer className="mt-12 mb-10 text-center text-stone-300 uppercase font-black text-[9px] tracking-[0.4em]">
+        <p>Created for Nhunz with Love • Soft UI v12.4</p>
+      </footer>
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800;900&display=swap');
+        
+        .main-app-container {
+          font-family: 'Nunito', sans-serif;
+        }
+
+        .soft-pastel-input { 
+          width: 100%; background: #FFF9FA; border: 2.5px solid #F3F1F0; border-radius: 1.8rem; padding: 1.2rem 1.6rem; 
+          font-size: 0.95rem; font-weight: 800; color: #5D4037; outline: none; transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); 
+        }
+        .soft-pastel-input:focus { border-color: #FFB7C5; background: white; box-shadow: 0 15px 45px rgba(255,183,197,0.1); transform: translateY(-2px); }
+        
+        .soft-pastel-select { 
+          width: 100%; background: #FFF9FA; border: 2.5px solid #F3F1F0; border-radius: 1.8rem; padding: 1.2rem 1.6rem; 
+          font-size: 0.95rem; font-weight: 800; color: #5D4037; outline: none; cursor: pointer; appearance: none; transition: all 0.3s; 
+        }
+        .soft-pastel-select:focus { border-color: #FFB7C5; background: white; }
+        
+        .animate-swing { animation: swing 2s infinite ease-in-out; }
+        @keyframes swing { 0%, 100% { transform: rotate(-10deg); } 50% { transform: rotate(10deg); } }
+      `}</style>
+    </div>
+  );
+};
+
+const QuickStat = ({ label, value, icon, isAlert }) => (
+  <div className={`px-10 py-7 rounded-[2.5rem] flex flex-col items-center justify-center border-2 border-white shadow-lg ${isAlert ? 'bg-rose-50 text-rose-600' : 'bg-stone-50 text-[#5D4037]'}`}>
+    <div className="mb-2 transform scale-110">{icon}</div>
+    <span className="text-[10px] font-black uppercase tracking-widest mb-1 opacity-70">{label}</span>
+    <span className="text-4xl font-black leading-none">{value}</span>
+  </div>
+);
+
+const SectionTitle = ({ icon, label }) => (
+  <div className="flex items-center gap-2 text-[#5D4037] mb-3 border-b border-stone-50 pb-2">
+    <div className="p-2 bg-white rounded-[1rem] shadow-sm border border-stone-100">{icon}</div>
+    <span className="text-[10px] font-black uppercase tracking-[0.2em]">{label}</span>
+  </div>
+);
+
+const InputField = ({ label, children }) => (
+  <div className="flex flex-col gap-2.5"><label className="text-[10px] font-black text-[#5D4037] uppercase ml-5 tracking-tighter">{label}</label>{children}</div>
+);
+
+const SummaryItem = ({ label, value }) => (
+  <div className="flex justify-between border-b border-stone-50 pb-2 items-center gap-4">
+    <span className="text-[8px] font-black text-stone-400 uppercase tracking-widest">{label}:</span>
+    <span className="text-[9px] font-bold text-stone-600 text-right uppercase truncate max-w-[120px]">{value || "-"}</span>
+  </div>
+);
+
+const InfoItem = ({ label, value, bold, color, highlight }) => (
+  <div className={`flex flex-col border-l-4 pl-6 py-2 transition-all ${highlight ? 'border-rose-400 bg-rose-50/50 shadow-inner rounded-r-2xl' : 'border-stone-100 hover:border-pink-200'}`}>
+    <span className="text-[9px] font-black text-stone-400 uppercase tracking-widest mb-1">{label}</span>
+    <span className={`text-sm ${bold ? 'font-black' : 'font-bold'} ${highlight ? 'text-rose-600' : color === 'pink' ? 'text-pink-600' : 'text-[#5D4037]'}`}>{value || '-'}</span>
+  </div>
+);
+
+export default App;
